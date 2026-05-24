@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-throw new Error('NEW CODE IS RUNNING');
 
 const express = require('express');
 const cors = require('cors');
