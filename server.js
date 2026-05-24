@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-
+console.log('NEW CODE IS RUNNING');
 const express = require('express');
 const cors = require('cors');
 const Groq = require('groq-sdk');
@@ -344,95 +344,22 @@ app.post('/classify', async (req, res) => {
     // ==================================================
     // 1. KEYWORD MATCH FIRST
     // ==================================================
-    const keywordFolder = detectFolder(combined);
+    const keywordFolder = detectFolder(title);
 
-    if (keywordFolder) {
-      console.log('KEYWORD CATEGORY:', keywordFolder);
-
-      return res.json({
-        folder: keywordFolder,
-        aiTitle: title.split('|')[0].trim(),
-        method: 'keyword'
-      });
-    }
-
-    // ==================================================
-    // 2. AI FALLBACK
-    // ==================================================
-    console.log('NO KEYWORD MATCH -> USING AI');
-
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.2,
-      messages: [
-        {
-          role: 'system',
-          content: `
-You are Sortly AI.
-
-Your tasks:
-1. Classify the video
-2. Create a short clean title
-
-Allowed folders:
-AI
-Coding
-Finance
-Business
-Health
-Fitness
-Gaming
-Education
-Music
-Comedy
-News
-Sports
-Motivation
-Other
-
-Rules:
-- Return ONLY valid JSON
-- Pick ONE folder only
-- aiTitle must be short and readable
-- No markdown
-- No explanations
-
-JSON FORMAT:
-{
-  "folder": "FolderName",
-  "aiTitle": "Short title"
+if (keywordFolder) {
+  return res.json({
+    folder: keywordFolder,
+    aiTitle: title.split('|')[0].trim(),
+    method: 'keyword'
+  });
 }
-`
-        },
-        {
-          role: 'user',
-          content: `
-Title:
-${title}
 
-Channel:
-${channel}
-`
-        }
-      ]
-    });
-
-    let result = completion.choices[0].message.content;
-
-    result = result
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .trim();
-
-    console.log('AI RESPONSE:', result);
-
-    const parsed = JSON.parse(result);
-
-    return res.json({
-      folder: parsed.folder || 'Other',
-      aiTitle: parsed.aiTitle || title.split('|')[0].trim(),
-      method: 'ai'
-    });
+// TEMP FALLBACK
+return res.json({
+  folder: 'Other',
+  aiTitle: title.split('|')[0].trim(),
+  method: 'fallback'
+});
 
   } catch (error) {
     console.log('ERROR:', error);
