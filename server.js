@@ -1,24 +1,56 @@
 require('dotenv').config();
 
+// ======================================================
+// STARTUP LOGS
+// ======================================================
+
+console.log('STEP 1: FILE STARTED');
+
 const express = require('express');
 const cors = require('cors');
 const Groq = require('groq-sdk');
+
+console.log('STEP 2: IMPORTS LOADED');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
+console.log('STEP 3: EXPRESS READY');
 
 // ======================================================
-// SIMPLE NORMALIZER
+// GROQ SETUP
 // ======================================================
 
-function normalize(text) {
+let groq = null;
+
+try {
+
+  if (!process.env.GROQ_API_KEY) {
+    console.log('WARNING: NO GROQ API KEY');
+  } else {
+
+    groq = new Groq({
+      apiKey: process.env.GROQ_API_KEY
+    });
+
+    console.log('STEP 4: GROQ READY');
+  }
+
+} catch (err) {
+
+  console.log('GROQ INIT ERROR:', err);
+}
+
+// ======================================================
+// NORMALIZER
+// ======================================================
+
+function normalize(text = '') {
+
   return text
+    .toString()
     .toLowerCase()
     .replace(/[^a-z0-9\s]/gi, ' ')
     .replace(/\s+/g, ' ')
@@ -88,14 +120,12 @@ const KEYWORDS = {
     'spotify',
     'album release',
     'live concert',
-    'live performance',
     'dj set',
     'remix',
     'instrumental',
     'hip hop',
     'rap song',
-    'pop song',
-    'rock band'
+    'pop song'
   ],
 
   News: [
@@ -108,12 +138,9 @@ const KEYWORDS = {
     'election',
     'prime minister',
     'president',
-    'white house',
     'government',
     'politics',
     'war update',
-    'news briefing',
-    'headline news',
     'journalist',
     'international news'
   ],
@@ -130,7 +157,6 @@ const KEYWORDS = {
     'llm',
     'stable diffusion',
     'midjourney',
-    'huggingface',
     'tensorflow',
     'pytorch'
   ],
@@ -145,9 +171,7 @@ const KEYWORDS = {
     'java programming',
     'c++',
     'mongodb',
-    'postgresql',
     'graphql',
-    'rest api',
     'docker',
     'kubernetes',
     'leetcode'
@@ -161,7 +185,6 @@ const KEYWORDS = {
     'forex',
     'nasdaq',
     's&p 500',
-    'day trading',
     'market crash',
     'coinbase',
     'binance'
@@ -171,12 +194,10 @@ const KEYWORDS = {
     'startup',
     'entrepreneur',
     'digital marketing',
-    'seo marketing',
     'shopify',
     'amazon fba',
     'dropshipping',
-    'venture capital',
-    'pitch deck'
+    'venture capital'
   ],
 
   Health: [
@@ -184,17 +205,14 @@ const KEYWORDS = {
     'nutrition tips',
     'healthy eating',
     'sleep health',
-    'stress management',
-    'doctor advice'
+    'stress management'
   ],
 
   Fitness: [
     'gym workout',
     'bodybuilding',
     'strength training',
-    'home workout',
     'weightlifting',
-    'crossfit',
     'fat loss'
   ],
 
@@ -203,7 +221,6 @@ const KEYWORDS = {
     'tutorial',
     'math tutorial',
     'physics lesson',
-    'chemistry class',
     'study tips'
   ],
 
@@ -212,39 +229,43 @@ const KEYWORDS = {
     'comedy skit',
     'stand up comedy',
     'meme compilation',
-    'prank video',
-    'funny moments'
+    'prank video'
   ],
 
   Motivation: [
     'motivational speech',
     'self improvement',
     'life advice',
-    'goal setting',
-    'inspirational speech'
+    'goal setting'
   ]
 };
 
 // ======================================================
 // KEYWORD DETECTION
-// ONLY CHECK TITLE + CHANNEL
+// ONLY TITLE + CHANNEL
 // ======================================================
 
 function detectFolder(title, channel) {
 
   const searchableText =
-    normalize(title + ' ' + channel);
+    normalize(`${title} ${channel}`);
 
-  console.log('SEARCH TEXT:', searchableText);
+  console.log(
+    'SEARCHABLE TEXT:',
+    searchableText
+  );
 
   for (const [folder, keywords] of Object.entries(KEYWORDS)) {
 
     for (const kw of keywords) {
 
-      const keyword = normalize(kw);
+      const keyword =
+        normalize(kw);
 
-      // EXACT STRING CHECK
-      if (searchableText.includes(keyword)) {
+      // EXACT STRING MATCH
+      if (
+        searchableText.includes(keyword)
+      ) {
 
         console.log(
           `MATCHED "${keyword}" -> ${folder}`
@@ -259,19 +280,32 @@ function detectFolder(title, channel) {
 }
 
 // ======================================================
+// AI TITLE CLEANER
+// ======================================================
+
+function basicTitleCleaner(title = '') {
+
+  return title
+    .split('|')[0]
+    .split('-')[0]
+    .trim();
+}
+
+// ======================================================
 // ROUTE
 // ======================================================
 
 app.post('/classify', async (req, res) => {
+
+  console.log('STEP 5: /classify HIT');
 
   try {
 
     const {
       title = '',
       channel = ''
-    } = req.body;
+    } = req.body || {};
 
-    console.log('\n====================');
     console.log('TITLE:', title);
     console.log('CHANNEL:', channel);
 
@@ -284,15 +318,17 @@ app.post('/classify', async (req, res) => {
 
     if (keywordFolder) {
 
+      console.log(
+        'KEYWORD RESULT:',
+        keywordFolder
+      );
+
       return res.json({
 
         folder: keywordFolder,
 
         aiTitle:
-          title
-            .split('|')[0]
-            .split('-')[0]
-            .trim(),
+          basicTitleCleaner(title),
 
         method: 'keyword'
       });
@@ -303,13 +339,32 @@ app.post('/classify', async (req, res) => {
     // ==================================================
 
     console.log(
-      'NO KEYWORD MATCH -> USING AI'
+      'NO KEYWORDS -> USING AI'
     );
+
+    // safety fallback if groq missing
+    if (!groq) {
+
+      console.log(
+        'NO GROQ AVAILABLE'
+      );
+
+      return res.json({
+
+        folder: 'Other',
+
+        aiTitle:
+          basicTitleCleaner(title),
+
+        method: 'fallback'
+      });
+    }
 
     const completion =
       await groq.chat.completions.create({
 
-        model: 'llama-3.3-70b-versatile',
+        model:
+          'llama-3.3-70b-versatile',
 
         temperature: 0.2,
 
@@ -321,8 +376,8 @@ app.post('/classify', async (req, res) => {
             content: `
 You are Sortly AI.
 
-Your jobs:
-1. Categorise the YouTube video
+Tasks:
+1. Categorise the video
 2. Create a short clean title
 
 Allowed folders:
@@ -352,7 +407,7 @@ FORMAT:
 
 {
   "folder": "FolderName",
-  "aiTitle": "Short Title"
+  "aiTitle": "Short title"
 }
 `
           },
@@ -371,19 +426,47 @@ ${channel}
         ]
       });
 
+    console.log(
+      'GROQ RESPONSE RECEIVED'
+    );
+
     let result =
-      completion.choices[0]
-        .message.content;
+      completion?.choices?.[0]
+        ?.message?.content || '';
+
+    console.log(
+      'RAW AI:',
+      result
+    );
 
     result = result
       .replace(/```json/g, '')
       .replace(/```/g, '')
       .trim();
 
-    console.log('AI RESPONSE:', result);
+    let parsed = null;
 
-    const parsed =
-      JSON.parse(result);
+    try {
+
+      parsed = JSON.parse(result);
+
+    } catch (jsonError) {
+
+      console.log(
+        'JSON PARSE FAILED:',
+        jsonError
+      );
+
+      return res.json({
+
+        folder: 'Other',
+
+        aiTitle:
+          basicTitleCleaner(title),
+
+        method: 'ai-fallback'
+      });
+    }
 
     return res.json({
 
@@ -392,17 +475,25 @@ ${channel}
 
       aiTitle:
         parsed.aiTitle ||
-        title.split('|')[0].trim(),
+        basicTitleCleaner(title),
 
       method: 'ai'
     });
 
   } catch (error) {
 
-    console.log('ERROR:', error);
+    console.log(
+      'ROUTE ERROR:',
+      error
+    );
 
     return res.status(500).json({
-      error: 'classification_failed'
+
+      error:
+        'classification_failed',
+
+      details:
+        error.message
     });
   }
 });
@@ -412,7 +503,10 @@ ${channel}
 // ======================================================
 
 app.get('/', (req, res) => {
-  res.send('Sortly Server Running');
+
+  res.send(
+    'Sortly Server Running'
+  );
 });
 
 // ======================================================
@@ -422,9 +516,13 @@ app.get('/', (req, res) => {
 const PORT =
   process.env.PORT || 3000;
 
+console.log(
+  'STEP 6: STARTING SERVER'
+);
+
 app.listen(PORT, () => {
 
   console.log(
-    `Server running on port ${PORT}`
+    `SERVER RUNNING ON PORT ${PORT}`
   );
 });
