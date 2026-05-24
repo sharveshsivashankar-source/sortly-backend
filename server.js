@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-console.log('NEW CODE IS RUNNING');
 const express = require('express');
 const cors = require('cors');
 const Groq = require('groq-sdk');
@@ -15,48 +14,39 @@ const groq = new Groq({
 });
 
 // ======================================================
-// NORMALIZER
+// SIMPLE NORMALIZER
 // ======================================================
 
 function normalize(text) {
   return text
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/[^a-z0-9\s]/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 // ======================================================
-// HARD KEYWORDS
-// ONE EXACT MATCH = INSTANT CATEGORY
+// KEYWORDS
 // ======================================================
 
 const KEYWORDS = {
+
   Sports: [
     'premier league',
     'champions league',
     'europa league',
-    'conference league',
     'la liga',
     'serie a',
     'bundesliga',
-    'ligue 1',
-    'eredivisie',
-    'world cup',
     'arsenal',
     'chelsea',
     'liverpool',
-    'manchester united',
-    'man utd',
-    'man city',
     'tottenham',
     'spurs',
-    'newcastle united',
+    'manchester united',
+    'man city',
     'real madrid',
     'barcelona',
-    'bayern munich',
-    'psg',
-    'juventus',
     'messi',
     'ronaldo',
     'haaland',
@@ -64,11 +54,9 @@ const KEYWORDS = {
     'football highlights',
     'match highlights',
     'goal highlights',
-    'transfer news',
     'nba',
     'nfl',
     'ufc',
-    'mma',
     'boxing',
     'formula 1',
     'wimbledon'
@@ -83,17 +71,13 @@ const KEYWORDS = {
     'call of duty',
     'warzone',
     'csgo',
-    'counter strike',
     'gta 5',
     'gta 6',
-    'apex legends',
     'rocket league',
-    'dota 2',
+    'apex legends',
     'overwatch',
     'playstation',
     'xbox',
-    'nintendo switch',
-    'twitch stream',
     'esports',
     'fifa'
   ],
@@ -102,10 +86,7 @@ const KEYWORDS = {
     'official music video',
     'lyrics video',
     'spotify',
-    'apple music',
-    'soundcloud',
     'album release',
-    'single release',
     'live concert',
     'live performance',
     'dj set',
@@ -113,43 +94,28 @@ const KEYWORDS = {
     'instrumental',
     'hip hop',
     'rap song',
-    'rnb',
     'pop song',
-    'rock band',
-    'music festival'
+    'rock band'
   ],
 
   News: [
     'breaking news',
     'world news',
-    'uk news',
-    'us news',
-    'cnn',
     'bbc news',
+    'cnn',
     'fox news',
     'sky news',
     'election',
-    'parliament',
     'prime minister',
     'president',
     'white house',
     'government',
     'politics',
-    'political debate',
     'war update',
-    'conflict update',
     'news briefing',
     'headline news',
-    'press conference',
     'journalist',
-    'live report',
-    'daily news',
-    'news update',
-    'international news',
-    'court ruling',
-    'investigation',
-    'breaking story',
-    'media coverage'
+    'international news'
   ],
 
   AI: [
@@ -161,16 +127,12 @@ const KEYWORDS = {
     'gemini ai',
     'machine learning',
     'deep learning',
-    'neural network',
     'llm',
-    'ai tools',
-    'prompt engineering',
     'stable diffusion',
     'midjourney',
     'huggingface',
     'tensorflow',
-    'pytorch',
-    'generative ai'
+    'pytorch'
   ],
 
   Coding: [
@@ -179,16 +141,11 @@ const KEYWORDS = {
     'react js',
     'node js',
     'express js',
-    'next js',
     'typescript',
     'java programming',
     'c++',
-    'swift ios',
-    'kotlin android',
-    'tailwind css',
     'mongodb',
     'postgresql',
-    'mysql',
     'graphql',
     'rest api',
     'docker',
@@ -205,10 +162,7 @@ const KEYWORDS = {
     'nasdaq',
     's&p 500',
     'day trading',
-    'bull market',
-    'bear market',
     'market crash',
-    'financial freedom',
     'coinbase',
     'binance'
   ],
@@ -218,30 +172,20 @@ const KEYWORDS = {
     'entrepreneur',
     'digital marketing',
     'seo marketing',
-    'affiliate marketing',
     'shopify',
     'amazon fba',
     'dropshipping',
-    'business ideas',
-    'sales funnel',
-    'lead generation',
-    'startup funding',
     'venture capital',
     'pitch deck'
   ],
 
   Health: [
     'mental health',
-    'therapy session',
     'nutrition tips',
     'healthy eating',
     'sleep health',
     'stress management',
-    'anxiety relief',
-    'doctor advice',
-    'medical tips',
-    'immune system',
-    'gut health'
+    'doctor advice'
   ],
 
   Fitness: [
@@ -251,24 +195,16 @@ const KEYWORDS = {
     'home workout',
     'weightlifting',
     'crossfit',
-    'hiit workout',
-    'fitness transformation',
-    'protein diet',
-    'muscle building',
     'fat loss'
   ],
 
   Education: [
     'online course',
-    'tutorial lesson',
-    'science explanation',
+    'tutorial',
     'math tutorial',
     'physics lesson',
     'chemistry class',
-    'history documentary',
-    'language learning',
-    'study tips',
-    'exam preparation'
+    'study tips'
   ],
 
   Comedy: [
@@ -277,51 +213,48 @@ const KEYWORDS = {
     'stand up comedy',
     'meme compilation',
     'prank video',
-    'funny moments',
-    'viral memes',
-    'laugh challenge',
-    'funny fails',
-    'parody video'
+    'funny moments'
   ],
 
   Motivation: [
     'motivational speech',
-    'success mindset',
-    'discipline motivation',
     'self improvement',
-    'morning motivation',
     'life advice',
-    'positive thinking',
     'goal setting',
-    'never give up',
     'inspirational speech'
   ]
 };
 
 // ======================================================
-// EXACT STRING MATCH ALGORITHM
+// KEYWORD DETECTION
+// ONLY CHECK TITLE + CHANNEL
 // ======================================================
 
-function detectFolder(text) {
-  const t = normalize(text);
-  console.log('NORMALIZED TEXT BEING TESTED:', t);
+function detectFolder(title, channel) {
+
+  const searchableText =
+    normalize(title + ' ' + channel);
+
+  console.log('SEARCH TEXT:', searchableText);
 
   for (const [folder, keywords] of Object.entries(KEYWORDS)) {
+
     for (const kw of keywords) {
+
       const keyword = normalize(kw);
 
-      // EXACT STRING / PHRASE MATCH BOUNDARIES
-      const regex = new RegExp(
-        `\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
-        'i'
-      );
+      // EXACT STRING CHECK
+      if (searchableText.includes(keyword)) {
 
-      if (regex.test(t)) {
-        console.log(`MATCHED EXACT "${kw}" -> ${folder}`);
+        console.log(
+          `MATCHED "${keyword}" -> ${folder}`
+        );
+
         return folder;
       }
     }
   }
+
   return null;
 }
 
@@ -330,12 +263,13 @@ function detectFolder(text) {
 // ======================================================
 
 app.post('/classify', async (req, res) => {
-  try {
-    const { title = '', channel = '' } = req.body;
 
-    // Fix: Combine title and channel together so keywords present 
-    // inside either field get matched before falling back to AI.
-    const combined = `${title} ${channel}`;
+  try {
+
+    const {
+      title = '',
+      channel = ''
+    } = req.body;
 
     console.log('\n====================');
     console.log('TITLE:', title);
@@ -344,26 +278,132 @@ app.post('/classify', async (req, res) => {
     // ==================================================
     // 1. KEYWORD MATCH FIRST
     // ==================================================
-    const keywordFolder = detectFolder(title);
 
-if (keywordFolder) {
-  return res.json({
-    folder: keywordFolder,
-    aiTitle: title.split('|')[0].trim(),
-    method: 'keyword'
-  });
+    const keywordFolder =
+      detectFolder(title, channel);
+
+    if (keywordFolder) {
+
+      return res.json({
+
+        folder: keywordFolder,
+
+        aiTitle:
+          title
+            .split('|')[0]
+            .split('-')[0]
+            .trim(),
+
+        method: 'keyword'
+      });
+    }
+
+    // ==================================================
+    // 2. AI FALLBACK
+    // ==================================================
+
+    console.log(
+      'NO KEYWORD MATCH -> USING AI'
+    );
+
+    const completion =
+      await groq.chat.completions.create({
+
+        model: 'llama-3.3-70b-versatile',
+
+        temperature: 0.2,
+
+        messages: [
+
+          {
+            role: 'system',
+
+            content: `
+You are Sortly AI.
+
+Your jobs:
+1. Categorise the YouTube video
+2. Create a short clean title
+
+Allowed folders:
+Sports
+Gaming
+Music
+News
+AI
+Coding
+Finance
+Business
+Health
+Fitness
+Education
+Comedy
+Motivation
+Other
+
+Rules:
+- Return ONLY JSON
+- Pick ONE folder
+- aiTitle must be short
+- No markdown
+- No explanations
+
+FORMAT:
+
+{
+  "folder": "FolderName",
+  "aiTitle": "Short Title"
 }
+`
+          },
 
-// TEMP FALLBACK
-return res.json({
-  folder: 'Other',
-  aiTitle: title.split('|')[0].trim(),
-  method: 'fallback'
-});
+          {
+            role: 'user',
+
+            content: `
+Title:
+${title}
+
+Channel:
+${channel}
+`
+          }
+        ]
+      });
+
+    let result =
+      completion.choices[0]
+        .message.content;
+
+    result = result
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
+
+    console.log('AI RESPONSE:', result);
+
+    const parsed =
+      JSON.parse(result);
+
+    return res.json({
+
+      folder:
+        parsed.folder || 'Other',
+
+      aiTitle:
+        parsed.aiTitle ||
+        title.split('|')[0].trim(),
+
+      method: 'ai'
+    });
 
   } catch (error) {
+
     console.log('ERROR:', error);
-    return res.status(500).json({ error: 'classification_failed' });
+
+    return res.status(500).json({
+      error: 'classification_failed'
+    });
   }
 });
 
@@ -379,8 +419,12 @@ app.get('/', (req, res) => {
 // SERVER
 // ======================================================
 
-const PORT = process.env.PORT || 3000;
+const PORT =
+  process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+  console.log(
+    `Server running on port ${PORT}`
+  );
 });
